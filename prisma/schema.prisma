@@ -1,0 +1,132 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String        @id @default(cuid())
+  telegramId    String?       @unique // For Telegram login
+  email         String        @unique
+  password      String
+  username      String?
+  firstName     String?
+  lastName      String?
+  photoUrl      String?
+  phoneNumber   String?
+  companyName   String?
+  description   String?
+  role          Role? // Optional: User will select after Telegram login
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  products      Product[]
+  favorites     Favorite[]
+  sentMessages  Message[]     @relation("sentMessages")
+  receivedMessages Message[]  @relation("receivedMessages")
+  chats         Chat[]        @relation("chatParticipants")
+  subscription  Subscription?
+  readReceipts  MessageReadReceipt[] // Relation to messages read by the user
+}
+
+enum Role {
+  ADMIN
+  CLIENT
+  SELLER
+}
+
+model Subscription {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id])
+  type      SubType  @default(FREE)
+  startDate DateTime @default(now())
+  endDate   DateTime?
+}
+
+enum SubType {
+  FREE
+  PRO
+}
+
+enum ListingType {
+  SALE
+  RENT
+}
+
+model Category {
+  id          String     @id @default(cuid())
+  name        String
+  parentId    String?
+  parent      Category?  @relation("SubCategories", fields: [parentId], references: [id])
+  subCategories Category[] @relation("SubCategories")
+  products    Product[]
+
+  @@unique([name, parentId])
+}
+
+model Product {
+  id          String      @id @default(cuid())
+  name        String
+  description String
+  price       Float
+  imageUrl    String
+  location    String? // For geolocation search
+  listingType ListingType @default(SALE)
+  categoryId  String
+  category    Category    @relation(fields: [categoryId], references: [id])
+  sellerId    String
+  seller      User        @relation(fields: [sellerId], references: [id])
+  viewCount   Int         @default(0)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  favorites   Favorite[]
+}
+
+model Favorite {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId])
+}
+
+model Chat {
+  id        String    @id @default(cuid())
+  participants User[] @relation("chatParticipants")
+  messages  Message[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @default(now()) @updatedAt // Add updatedAt for better sorting of chats by last activity
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  text      String
+  chatId    String
+  chat      Chat     @relation(fields: [chatId], references: [id])
+  senderId  String
+  sender    User     @relation("sentMessages", fields: [senderId], references: [id])
+  receiverId String
+  receiver  User     @relation("receivedMessages", fields: [receiverId], references: [id])
+  createdAt DateTime @default(now())
+  readReceipts MessageReadReceipt[]
+}
+
+model MessageReadReceipt {
+  id        String   @id @default(cuid())
+  messageId String
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  readerId  String
+  reader    User     @relation(fields: [readerId], references: [id], onDelete: Cascade)
+  readAt    DateTime @default(now())
+
+  @@unique([messageId, readerId])
+}
